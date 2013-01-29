@@ -90,21 +90,23 @@ int main(int argc, char *argv[])
     salt[16] = '\0';
     gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
     key[32] = '\0';
-    //fputs(salt, encFile);
+    fputs(salt, encFile);
     gcry_cipher_hd_t cipher;
     err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
-    err = gcry_cipher_setkey(cipher, key, strlen(key));
-    err = gcry_cipher_setiv(cipher, salt, strlen(salt));
-    char curBlock[1025];
-    char outBlock[1025];
+    err = gcry_cipher_setkey(cipher, key, 32);
+    err = gcry_cipher_setiv(cipher, salt, 16);
+    char curBlock[1024];
+    int readlen;
     while(!feof(srcFile)){
+      for(i = 0; i < 1024; i++){
+          curBlock[i] = '\0';
+      }
       fread(curBlock, 1, 1024, srcFile);
-      curBlock[1024] = '\0';
-      gcry_cipher_encrypt(cipher, curBlock, 1024, curBlock, 1024);
-      fread(curBlock, 1, 1024, srcFile);
+      printf("plainText:%s\n\n\n", curBlock);
+      gcry_cipher_encrypt(cipher, curBlock, 1024, NULL, 0);
+        printf("EncText:%s\n\n\n", curBlock);
       fwrite(curBlock, 1, 1024, encFile);
     }
-      gcry_cipher_decrypt(cipher, curBlock, 1024, curBlock, 1024);
 
     if(local){
     
