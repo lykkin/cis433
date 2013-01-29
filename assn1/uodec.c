@@ -22,61 +22,37 @@ int main(int argc, char *argv[])
   /* Tell Libgcrypt that initialization has completed. */
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 
-  int local = 1;
-  char address[17];
   int port;
   char fileName[100];
-  int fileSpecified = 0;
   char salt[17];
   char password[33];
   char key[33];
-  
-  if(argc > 4){
-    printf("Incorrect syntax, should be: ./uoenc <input file> [-d <output IP-addr:port>] [-l]");
+  int fileSpecified = 0; 
+  if(argc < 2 || argc > 3){
+    printf("Incorrect syntax, should be: ./uodec <port>  [-l <file name>]");
     exit(1);
   }
   int i;
   for(i = 1; i < argc; i++){
     if(strncmp(argv[i], "-l", 2) == 0){
-       local = 1;
-    }
-    
-    //grab ip and port if specified
-    else if(strncmp(argv[i], "-d", 2) == 0){
-      local = 0;
-      i++;
-      int j;
-      for(j = 0; j <= 16; j++){
-        address[j] = argv[i][j];
-        if(argv[i][j] == ':'){
-          address[j] = '\0';
-          char portString[16];
-          memcpy (portString, argv[i] + j + 1, strlen(argv[i]) - j - 1);
-          portString[strlen(argv[i]) - j - 1] = '\0';
-          port = atoi(portString);
-          break;
-        }
-      }
-    }
-
-    else {
       fileSpecified = 1;
-      strncpy (fileName, argv[i], strlen(argv[i]));
-      fileName[strlen(argv[i])] = '\0';
+      strcpy(fileName, argv[++i]);
+    } else {
+      port = atoi(argv[i]);
     }
 
   }
   
   FILE *srcFile = fopen(fileName, "r");
   if(fileSpecified && srcFile){
-    char encFileName[100];
-    strcpy(encFileName, fileName);
-    strcat(encFileName, ".uo");
-    FILE * encFile = fopen(encFileName, "a+");
-    if(fgetc(encFile) != EOF){
-      printf("%s already exists, exitting.\n", encFileName);
+    char decFileName[100];
+    strcpy(decFileName, fileName);
+    decFileName[strlen(decFileName) - 3] = '\0';
+    FILE * decFile = fopen(decFileName, "a+");
+    if(fgetc(decFile) != EOF){
+      printf("%s already exists, exitting.\n", decFileName);
       fclose(srcFile);
-      fclose(encFile);
+      fclose(decFile);
       exit(1);
     }
     //Get a password from the user
@@ -90,7 +66,7 @@ int main(int argc, char *argv[])
     salt[16] = '\0';
     gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
     key[32] = '\0';
-    //fputs(salt, encFile);
+    //fputs(salt, decFile);
     gcry_cipher_hd_t cipher;
     err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
     err = gcry_cipher_setkey(cipher, key, strlen(key));
@@ -100,9 +76,9 @@ int main(int argc, char *argv[])
     while(!feof(srcFile)){
       fread(curBlock, 1, 1024, srcFile);
       curBlock[1024] = '\0';
-      gcry_cipher_encrypt(cipher, curBlock, 1024, curBlock, 1024);
+      gcry_cipher_decrypt(cipher, curBlock, 1024, curBlock, 1024);
       fread(curBlock, 1, 1024, srcFile);
-      fwrite(curBlock, 1, 1024, encFile);
+      fwrite(curBlock, 1, 1024, decFile);
     }
       gcry_cipher_decrypt(cipher, curBlock, 1024, curBlock, 1024);
 
