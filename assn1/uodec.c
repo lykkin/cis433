@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   char key[33];
   int fileSpecified = 0; 
   if(argc < 2 || argc > 3){
-    printf("Incorrect syntax, should be: ./uodec <port>  [-l <file name>]");
+    printf("Incorrect syntax, should be: ./uodec [<port>]  [-l <file name>]");
     exit(1);
   }
   int i;
@@ -43,49 +43,53 @@ int main(int argc, char *argv[])
 
   }
   
-  FILE *srcFile = fopen(fileName, "r");
-  if(fileSpecified && srcFile){
-    char decFileName[100];
-    strcpy(decFileName, fileName);
-    decFileName[strlen(decFileName) - 3] = '\0';
-    FILE * decFile = fopen(decFileName, "a+");
-    if(fgetc(decFile) != EOF){
-      printf("%s already exists, exitting.\n", decFileName);
-      fclose(srcFile);
-      fclose(decFile);
-      exit(1);
+  if(fileSpecified){
+    FILE *srcFile = fopen(fileName, "r");
+    if(fileSpecified && srcFile){
+      char decFileName[100];
+      strcpy(decFileName, fileName);
+      decFileName[strlen(decFileName) - 1] = '\0';
+      FILE * decFile = fopen(decFileName, "a+");
+      if(fgetc(decFile) != EOF){
+        printf("%s already exists, exitting.\n", decFileName);
+        fclose(srcFile);
+        fclose(decFile);
+        exit(1);
+      }
+      //Get a password from the user
+      printf("Password: ");
+      for(i = 0; i < 33; i++){
+        password[i] = '\0';
+      }
+      fgets(password, 32, stdin);
+      //generate a salt and key
+      fread(salt, 1, 16, srcFile);
+      salt[16] = '\0';
+      gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
+      key[32] = '\0';
+      printf("salt:%s\nkey:%s\n", salt, key);
+      gcry_cipher_hd_t cipher;
+      err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
+      err = gcry_cipher_setkey(cipher, key, 32);
+      err = gcry_cipher_setiv(cipher, salt, 16);
+      char curBlock[1025];
+    for(i = 0; i <1025; i++){
+      curBlock[i] = '\0';
     }
-    //Get a password from the user
-    printf("Password: ");
-    for(i = 0; i < 33; i++){
-      password[i] = '\0';
-    }
-    fgets(password, 32, stdin);
-    //generate a salt and key
-    gcry_randomize(salt, 16, GCRY_STRONG_RANDOM);
-    salt[16] = '\0';
-    gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
-    key[32] = '\0';
-    //fputs(salt, decFile);
-    gcry_cipher_hd_t cipher;
-    err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
-    err = gcry_cipher_setkey(cipher, key, strlen(key));
-    err = gcry_cipher_setiv(cipher, salt, strlen(salt));
-    char curBlock[1025];
-    char outBlock[1025];
-    while(!feof(srcFile)){
-      fread(curBlock, 1, 1024, srcFile);
-      curBlock[1024] = '\0';
-      gcry_cipher_decrypt(cipher, curBlock, 1024, curBlock, 1024);
-      fread(curBlock, 1, 1024, srcFile);
-      fwrite(curBlock, 1, 1024, decFile);
-    }
-      gcry_cipher_decrypt(cipher, curBlock, 1024, curBlock, 1024);
+      int readlen;
+      while(!feof(srcFile)){
+        readlen = fread(curBlock, 1, 1024, srcFile);
+        printf("%d\n", readlen);
+        curBlock[readlen] = '\0';
+        printf("EncText:%s\n\n\n", curBlock);
+        gcry_cipher_decrypt(cipher, curBlock, readlen, curBlock, readlen);
+      printf("plainText:%s\n\n\n", curBlock);
+        fwrite(curBlock, 1, readlen, decFile);
+      }
 
-    if(local){
-    
-    } else {
       
+    } else {
+        
     }
   } else {
     printf("File was not specified or does not exist\n");
