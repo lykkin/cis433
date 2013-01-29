@@ -74,15 +74,24 @@ int main(int argc, char *argv[])
       err = gcry_cipher_setiv(cipher, salt, 16);
       char curBlock[1024];
       int readlen;
+      int padding = 0;
       while(!feof(srcFile)){
         for(i = 0; i <1024; i++){
-          curBlock[i] = '\0';
+          curBlock[i] = 0;
         }
         readlen = fread(curBlock, 1, 1024, srcFile);
         printf("EncText:%s\n\n\n", curBlock);
-        gcry_cipher_decrypt(cipher, curBlock, 1024, NULL, 0);
+        gcry_cipher_decrypt(cipher, curBlock, readlen, NULL, 0);
+        if(readlen != 1024){
+          for(i = 0; i < readlen; i++){
+            if(curBlock[i] == 0){
+              padding++;
+            }
+          }
+        }
       printf("plainText:%s\n\n\n", curBlock);
-        fwrite(curBlock, 1, readlen, decFile);
+        readlen = fwrite(curBlock, 1, readlen - padding, decFile);
+      printf("%d\n", readlen);
       }
 
       

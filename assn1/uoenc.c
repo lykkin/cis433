@@ -92,20 +92,26 @@ int main(int argc, char *argv[])
     key[32] = '\0';
     fputs(salt, encFile);
     gcry_cipher_hd_t cipher;
+      printf("salt:%s\nkey:%s\n", salt, key);
     err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
     err = gcry_cipher_setkey(cipher, key, 32);
     err = gcry_cipher_setiv(cipher, salt, 16);
     char curBlock[1024];
     int readlen;
+    int padding;
     while(!feof(srcFile)){
       for(i = 0; i < 1024; i++){
-          curBlock[i] = '\0';
+          curBlock[i] = 0;
       }
-      fread(curBlock, 1, 1024, srcFile);
+      readlen = fread(curBlock, 1, 1024, srcFile);
+      padding = readlen % 16 ? 16 - (readlen % 16) : 0;
+      readlen += padding;
+      printf("%d\n", readlen);
       printf("plainText:%s\n\n\n", curBlock);
-      gcry_cipher_encrypt(cipher, curBlock, 1024, NULL, 0);
+      gcry_cipher_encrypt(cipher, curBlock, readlen, NULL, 0);
         printf("EncText:%s\n\n\n", curBlock);
-      fwrite(curBlock, 1, 1024, encFile);
+      readlen = fwrite(curBlock, 1, readlen, encFile);
+      printf("%d\n", readlen);
     }
 
     if(local){
