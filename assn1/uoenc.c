@@ -92,33 +92,43 @@ int main(int argc, char *argv[])
     key[32] = '\0';
     fputs(salt, encFile);
     gcry_cipher_hd_t cipher;
+    gcry_md_hd_t hash;
       printf("salt:%s\nkey:%s\n", salt, key);
     err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
     err = gcry_cipher_setkey(cipher, key, 32);
     err = gcry_cipher_setiv(cipher, salt, 16);
-    char curBlock[1024];
+    err = gcry_md_open(&hash, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+    err = gcry_md_setkey(hash, key, 32);
+    char curBlock[1056];
     int readlen;
     int padding;
+    int totalSize = 0;
     while(!feof(srcFile)){
-      for(i = 0; i < 1024; i++){
+      for(i = 0; i < 1056; i++){
           curBlock[i] = 0;
       }
       readlen = fread(curBlock, 1, 1024, srcFile);
       padding = readlen % 16 ? 16 - (readlen % 16) : 0;
       readlen += padding;
-      printf("%d\n", readlen);
-      printf("plainText:%s\n\n\n", curBlock);
+      gcry_md_write(hash, curBlock, readlen);
+      memcpy(curBlock + readlen, gcry_md_read(hash, GCRY_MD_SHA256), 32);
+      readlen += 32;
+      printf("read %d bytes, wrote %d bytes,\n", readlen - 32, readlen);
+      totalSize += readlen;
       gcry_cipher_encrypt(cipher, curBlock, readlen, NULL, 0);
-        printf("EncText:%s\n\n\n", curBlock);
       readlen = fwrite(curBlock, 1, readlen, encFile);
-      printf("%d\n", readlen);
     }
+    printf("Successfully encrypted %s to %s (%d bytes written).", fileName, encFileName, totalSize);
+    if(!local){
 
-    if(local){
-    
-    } else {
-      
-    }
+    } 
+
+    fclose(srcFile);
+    fclose(encFile);
+    gcry_cipher_close(cipher);
+    gcry_md_close(hash);
+
+
   } else {
     printf("File was not specified or does not exist\n");
     exit(1);

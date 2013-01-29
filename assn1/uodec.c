@@ -45,7 +45,10 @@ int main(int argc, char *argv[])
   
   if(fileSpecified){
     FILE *srcFile = fopen(fileName, "r");
-    if(fileSpecified && srcFile){
+  } else {
+    //sockets go here. 
+  }
+    if(srcFile){
       char decFileName[100];
       strcpy(decFileName, fileName);
       decFileName[strlen(decFileName) - 1] = '\0';
@@ -69,19 +72,27 @@ int main(int argc, char *argv[])
       key[32] = '\0';
       printf("salt:%s\nkey:%s\n", salt, key);
       gcry_cipher_hd_t cipher;
+      gcry_md_hd_t hash;
       err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
       err = gcry_cipher_setkey(cipher, key, 32);
       err = gcry_cipher_setiv(cipher, salt, 16);
-      char curBlock[1024];
+      err = gcry_md_open(&hash, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+      err = gcry_md_setkey(hash, key, 32);
+      char curBlock[1056];
       int readlen;
       int padding = 0;
+      char message[1024];
+      char hmac[32];
       while(!feof(srcFile)){
-        for(i = 0; i <1024; i++){
+        for(i = 0; i <1056; i++){
           curBlock[i] = 0;
         }
-        readlen = fread(curBlock, 1, 1024, srcFile);
+        readlen = fread(curBlock, 1, 1056, srcFile);
         printf("EncText:%s\n\n\n", curBlock);
         gcry_cipher_decrypt(cipher, curBlock, readlen, NULL, 0);
+        memcpy(message, curBlock, 1024);
+        memcpy(hmac, curBlock + 1024, 32);
+        readlen -= 32;
         if(readlen != 1024){
           for(i = 0; i < readlen; i++){
             if(curBlock[i] == 0){
@@ -93,14 +104,11 @@ int main(int argc, char *argv[])
         readlen = fwrite(curBlock, 1, readlen - padding, decFile);
       printf("%d\n", readlen);
       }
+      fclose(srcFile);
+      fclose(decFile);
+      gcry_cipher_close(cipher);
+      gcry_md_close(hash);
 
       
-    } else {
-        
-    }
-  } else {
-    printf("File was not specified or does not exist\n");
-    exit(1);
-  }
   return 0;
 }
