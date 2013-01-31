@@ -53,11 +53,23 @@ int main(int argc, char *argv[])
   printf("%s\n",fileName);
     srcFile = fopen(fileName, "r");
   } else {
+      int fileSocket;
+      struct sockaddr_storage fileAddr;
+      memset(&hints, 0, sizeof hints);
+      hints.ai_socktype = SOCK_STREAM;
+      hints.ai_flags = AI_PASSIVE;   
       hints.ai_family = AF_INET;
       getaddrinfo(NULL, port, &hints, &servinfo);
       s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
       bind(s, servinfo->ai_addr, servinfo->ai_addrlen);
-    
+      listen(s, 20);
+      socklen_t addr_size = sizeof fileAddr;
+      printf("Waiting for connection...\n");
+      fileSocket = accept(s, (struct sockaddr *) &fileAddr, &addr_size);
+      printf("Inbound file.");
+      shutdown(s, 2);
+      printf("CONNECTED\n");
+      
     //sockets go here. 
   }
   char decFileName[100];
@@ -78,11 +90,9 @@ int main(int argc, char *argv[])
   fgets(password, 32, stdin);
   //generate a salt and key
   fread(salt, 1, 16, srcFile);
-  printf("TEST1\n");
   salt[16] = '\0';
   gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
   key[32] = '\0';
-  printf("salt:%s\nkey:%s\n", salt, key);
   gcry_cipher_hd_t cipher;
   gcry_md_hd_t hash;
   err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
@@ -95,12 +105,12 @@ int main(int argc, char *argv[])
   int padding = 0;
   char message[1024];
   char hmac[32];
+  int totalSize = 0;
   while(!feof(srcFile)){
     for(i = 0; i <1056; i++){
       curBlock[i] = 0;
     }
     readlen = fread(curBlock, 1, 1056, srcFile);
-    printf("EncText:%s\n\n\n", curBlock);
     gcry_cipher_decrypt(cipher, curBlock, readlen, NULL, 0);
     memcpy(message, curBlock, 1024);
     memcpy(hmac, curBlock + 1024, 32);
@@ -108,13 +118,22 @@ int main(int argc, char *argv[])
     if(readlen != 1024){
       for(i = 0; i < readlen; i++){
         if(curBlock[i] == 0){
-          padding++;
+          if(++padding == 15){
+            break;
+          };
         }
       }
     }
-  printf("plainText:%s\n\n\n", curBlock);
+    readlen -= padding;
+    totalSize += readlen;
+    printf("read %d bytes, wrote %d bytes,\n", readlen + 32 + padding, readlen);
     readlen = fwrite(curBlock, 1, readlen - padding, decFile);
-  printf("%d\n", readlen);
+  }
+  if(fileSpecified){
+    printf("Successfully decrypted %s to %s (%d bytes written).\n", fileName, decFileName, totalSize);
+  } else {
+    printf("Successfully recieved and decrypted %s to %s (%d bytes written).\n", fileName, decFileName, totalSize);
+  
   }
   fclose(srcFile);
   fclose(decFile);

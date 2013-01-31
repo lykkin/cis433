@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include <netinet/in.h>
 
 int main(int argc, char *argv[])
 {
@@ -96,7 +97,6 @@ int main(int argc, char *argv[])
     fputs(salt, encFile);
     gcry_cipher_hd_t cipher;
     gcry_md_hd_t hash;
-      printf("salt:%s\nkey:%s\n", salt, key);
     err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
     err = gcry_cipher_setkey(cipher, key, 32);
     err = gcry_cipher_setiv(cipher, salt, 16);
@@ -122,18 +122,21 @@ int main(int argc, char *argv[])
       readlen = fwrite(curBlock, 1, readlen, encFile);
     }
     printf("Successfully encrypted %s to %s (%d bytes written).\n", fileName, encFileName, totalSize);
+    fclose(srcFile);
+    gcry_cipher_close(cipher);
+    gcry_md_close(hash);
     if(!local){
+      printf("Transmitting to %s:%s\n",address,port);
+      memset(&hints, 0, sizeof hints);
+      hints.ai_socktype = SOCK_STREAM;
       hints.ai_family = AF_INET;
       getaddrinfo(address, port, &hints, &servinfo);
       s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-      bind(s, servinfo->ai_addr, servinfo->ai_addrlen);
+      connect(s, servinfo->ai_addr, servinfo->ai_addrlen);
+      printf("Successfully received.\n");
     } 
 
-    fclose(srcFile);
     fclose(encFile);
-    gcry_cipher_close(cipher);
-    gcry_md_close(hash);
-
 
   } else {
     printf("File was not specified or does not exist\n");
