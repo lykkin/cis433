@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
   /* Tell Libgcrypt that initialization has completed. */
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 
+  //variables and such
   char port[8];
   char fileName[100];
   char salt[17];
@@ -33,7 +34,9 @@ int main(int argc, char *argv[])
   int fileSpecified = 0; 
   struct addrinfo hints, *servinfo;
   int i;
-  int s; 
+  int s; //socket
+
+  //parse input
   if(argc < 2 || argc > 3){
     printf("Incorrect syntax, should be: ./uodec [<port>]  [-l <file name>]");
     exit(1);
@@ -49,6 +52,7 @@ int main(int argc, char *argv[])
 
   FILE *srcFile;
   
+  //followed beej's networking guide for this section: http://beej.us/guide/bgnet/output/html/singlepage/bgnet.html#syscalls
   if(!fileSpecified){
     int fileSocket;
     struct sockaddr_storage fileAddr;
@@ -77,6 +81,7 @@ int main(int argc, char *argv[])
     close(fileSocket);
     fclose(srcFile);
   }
+
   srcFile = fopen(fileName, "r");
   char decFileName[100];
   strcpy(decFileName, fileName);
@@ -88,17 +93,22 @@ int main(int argc, char *argv[])
     fclose(decFile);
     exit(1);
   }
-//Get a password from the user
+
+  //Get a password from the user
   printf("Password: ");
   for(i = 0; i < 33; i++){
     password[i] = '\0';
   }
   fgets(password, 32, stdin);
-  //generate a salt and key
+
+
+  //grab salt and generate key
   fread(salt, 1, 16, srcFile);
   salt[16] = '\0';
   gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
   key[32] = '\0';
+
+  //initialize all the cipher stuff
   gcry_cipher_hd_t cipher;
   gcry_md_hd_t hash;
   err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
@@ -112,6 +122,8 @@ int main(int argc, char *argv[])
   char message[1024];
   char hmac[32];
   int totalSize = 0;
+
+  //file parsing below
   while(!feof(srcFile)){
     memset(curBlock, 0, 1056);
     readlen = fread(curBlock, 1, 1056, srcFile);
@@ -128,12 +140,15 @@ int main(int argc, char *argv[])
     printf("read %d bytes, wrote %d bytes,\n", readlen + 32 + padding, readlen);
     readlen = fwrite(curBlock, 1, readlen, decFile);
   }
+
   if(fileSpecified){
     printf("Successfully decrypted %s to %s (%d bytes written).\n", fileName, decFileName, totalSize);
   } else {
     printf("Successfully recieved and decrypted %s to %s (%d bytes written).\n", fileName, decFileName, totalSize);
   
   }
+
+  //house keeping
   fclose(srcFile);
   fclose(decFile);
   gcry_cipher_close(cipher);

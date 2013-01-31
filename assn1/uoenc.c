@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
   char salt[17];
   char password[33];
   char key[33];
-  int s; 
+  int s; //socket
   struct addrinfo *servinfo, hints;
   
   if(argc > 4){
@@ -71,30 +71,39 @@ int main(int argc, char *argv[])
 
   }
   
+  //start file parsing
   FILE *srcFile = fopen(fileName, "r");
+
   if(fileSpecified && srcFile){
     char encFileName[100];
     strcpy(encFileName, fileName);
     strcat(encFileName, ".uo");
     FILE * encFile = fopen(encFileName, "a+");
-    if(fgetc(encFile) != EOF){
+
+    if(fgetc(encFile) != EOF){ //check if target encrypt file is empty
       printf("%s already exists, exitting.\n", encFileName);
       fclose(srcFile);
       fclose(encFile);
       exit(1);
     }
+
     //Get a password from the user
     printf("Password: ");
     for(i = 0; i < 33; i++){
       password[i] = '\0';
     }
     fgets(password, 32, stdin);
+
     //generate a salt and key
     gcry_randomize(salt, 16, GCRY_STRONG_RANDOM);
     salt[16] = '\0';
     gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
     key[32] = '\0';
+
+    //place salt at the beginning of the file to retrieve on the other side
     fputs(salt, encFile);
+
+    //set-up/declare all cipher stuff
     gcry_cipher_hd_t cipher;
     gcry_md_hd_t hash;
     err = gcry_cipher_open(&cipher, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
@@ -107,12 +116,14 @@ int main(int argc, char *argv[])
     int padding;
     int padded = 0;
     char paddingChar = 0;
-    int totalSize = 16;
+    int totalSize = 16; //16 since salt is already written
+
+    //start encrypt/writing
     while(!feof(srcFile)){
-      for(i = 0; i < 1056; i++){
-          curBlock[i] = 0;
-      }
+      memset(curBlock, 0, 1056);
       readlen = fread(curBlock, 1, 1024, srcFile);
+
+      //if we have hit the end, pad the rest of the 16-byte block and flag as padded
       if(readlen < 1024){
         padding = readlen % 16 ? 16 - (readlen % 16) : 0;
         readlen += padding;
@@ -120,6 +131,8 @@ int main(int argc, char *argv[])
         padded = 1;
         totalSize += 1;
       }
+
+      //include hash for the current block and encrypt
       gcry_md_write(hash, curBlock, readlen);
       memcpy(curBlock + readlen, gcry_md_read(hash, GCRY_MD_SHA256), 32);
       readlen += 32;
@@ -131,8 +144,12 @@ int main(int argc, char *argv[])
       }
       readlen = fwrite(curBlock, 1, readlen + padded, encFile);
     }
+
     printf("Successfully encrypted %s to %s (%d bytes written).\n", fileName, encFileName, totalSize);
+
+    //if this is to be sent over a socket, do so
     if(!local){
+      //followed beej's networking guide for this section: http://beej.us/guide/bgnet/output/html/singlepage/bgnet.html#syscalls
       printf("Transmitting to %s:%s\n",address,port);
       memset(&hints, 0, sizeof hints);
       hints.ai_socktype = SOCK_STREAM;
@@ -152,12 +169,14 @@ int main(int argc, char *argv[])
       printf("Successfully received.\n");
     } 
 
+    //close all handles we had
     fclose(srcFile);
     gcry_cipher_close(cipher);
     gcry_md_close(hash);
     fclose(encFile);
 
   } else {
+    //if there is improper syntax, throw errors
     printf("File was not specified or does not exist\n");
     exit(1);
   }
