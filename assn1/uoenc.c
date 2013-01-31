@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gcrypt.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
 
 int main(int argc, char *argv[])
 {
@@ -24,12 +27,14 @@ int main(int argc, char *argv[])
 
   int local = 1;
   char address[17];
-  int port;
+  char port[8];
   char fileName[100];
   int fileSpecified = 0;
   char salt[17];
   char password[33];
   char key[33];
+  int s; 
+  struct addrinfo *servinfo, hints;
   
   if(argc > 4){
     printf("Incorrect syntax, should be: ./uoenc <input file> [-d <output IP-addr:port>] [-l]");
@@ -50,10 +55,8 @@ int main(int argc, char *argv[])
         address[j] = argv[i][j];
         if(argv[i][j] == ':'){
           address[j] = '\0';
-          char portString[16];
-          memcpy (portString, argv[i] + j + 1, strlen(argv[i]) - j - 1);
-          portString[strlen(argv[i]) - j - 1] = '\0';
-          port = atoi(portString);
+          memset(port, 0, 8);
+          memcpy (port, argv[i] + j + 1, strlen(argv[i]) - j - 1);
           break;
         }
       }
@@ -118,9 +121,12 @@ int main(int argc, char *argv[])
       gcry_cipher_encrypt(cipher, curBlock, readlen, NULL, 0);
       readlen = fwrite(curBlock, 1, readlen, encFile);
     }
-    printf("Successfully encrypted %s to %s (%d bytes written).", fileName, encFileName, totalSize);
+    printf("Successfully encrypted %s to %s (%d bytes written).\n", fileName, encFileName, totalSize);
     if(!local){
-
+      hints.ai_family = AF_INET;
+      getaddrinfo(address, port, &hints, &servinfo);
+      s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+      bind(s, servinfo->ai_addr, servinfo->ai_addrlen);
     } 
 
     fclose(srcFile);
