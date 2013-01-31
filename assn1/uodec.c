@@ -49,32 +49,38 @@ int main(int argc, char *argv[])
 
   FILE *srcFile;
   
-  if(fileSpecified){
-  printf("%s\n",fileName);
-    srcFile = fopen(fileName, "r");
-  } else {
-      int fileSocket;
-      struct sockaddr_storage fileAddr;
-      memset(&hints, 0, sizeof hints);
-      hints.ai_socktype = SOCK_STREAM;
-      hints.ai_flags = AI_PASSIVE;   
-      hints.ai_family = AF_INET;
-      getaddrinfo(NULL, port, &hints, &servinfo);
-      s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-      bind(s, servinfo->ai_addr, servinfo->ai_addrlen);
-      listen(s, 20);
-      socklen_t addr_size = sizeof fileAddr;
-      printf("Waiting for connection...\n");
-      fileSocket = accept(s, (struct sockaddr *) &fileAddr, &addr_size);
-      printf("Inbound file.");
-      shutdown(s, 2);
-      printf("CONNECTED\n");
-      
-    //sockets go here. 
+  if(!fileSpecified){
+    int fileSocket;
+    struct sockaddr_storage fileAddr;
+    memset(&hints, 0, sizeof hints);
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;   
+    hints.ai_family = AF_INET;
+    getaddrinfo(NULL, port, &hints, &servinfo);
+    s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+    bind(s, servinfo->ai_addr, servinfo->ai_addrlen);
+    listen(s, 20);
+    socklen_t addr_size = sizeof fileAddr;
+    printf("Waiting for connection...\n");
+    fileSocket = accept(s, (struct sockaddr *) &fileAddr, &addr_size);
+    printf("Inbound file.");
+    shutdown(s, 2);
+    char recvBuffer[512];
+    recv(fileSocket, fileName, 100, 0);
+    srcFile = fopen(fileName, "w");
+    memset(recvBuffer, '\0', 512);
+    int length;
+    while(length = recv(fileSocket, recvBuffer, 512, 0)){
+    printf("writing files, length %d\n", length);
+      fwrite(recvBuffer, 1, length, srcFile);
+    }
+    close(fileSocket);
+    fclose(srcFile);
   }
+  srcFile = fopen(fileName, "r");
   char decFileName[100];
   strcpy(decFileName, fileName);
-  decFileName[strlen(decFileName) - 1] = '\0';
+  decFileName[strlen(decFileName) - 3] = '\0';
   FILE * decFile = fopen(decFileName, "a+");
   if(fgetc(decFile) != EOF){
     printf("%s already exists, exitting.\n", decFileName);
@@ -82,7 +88,7 @@ int main(int argc, char *argv[])
     fclose(decFile);
     exit(1);
   }
-  //Get a password from the user
+//Get a password from the user
   printf("Password: ");
   for(i = 0; i < 33; i++){
     password[i] = '\0';
@@ -107,27 +113,20 @@ int main(int argc, char *argv[])
   char hmac[32];
   int totalSize = 0;
   while(!feof(srcFile)){
-    for(i = 0; i <1056; i++){
-      curBlock[i] = 0;
-    }
+    memset(curBlock, 0, 1056);
     readlen = fread(curBlock, 1, 1056, srcFile);
+    if(readlen < 1056){
+      padding = ((int) curBlock[readlen-1]);
+      readlen -= 1;
+    }
     gcry_cipher_decrypt(cipher, curBlock, readlen, NULL, 0);
     memcpy(message, curBlock, 1024);
     memcpy(hmac, curBlock + 1024, 32);
     readlen -= 32;
-    if(readlen != 1024){
-      for(i = 0; i < readlen; i++){
-        if(curBlock[i] == 0){
-          if(++padding == 15){
-            break;
-          };
-        }
-      }
-    }
     readlen -= padding;
     totalSize += readlen;
     printf("read %d bytes, wrote %d bytes,\n", readlen + 32 + padding, readlen);
-    readlen = fwrite(curBlock, 1, readlen - padding, decFile);
+    readlen = fwrite(curBlock, 1, readlen, decFile);
   }
   if(fileSpecified){
     printf("Successfully decrypted %s to %s (%d bytes written).\n", fileName, decFileName, totalSize);

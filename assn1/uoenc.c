@@ -105,26 +105,33 @@ int main(int argc, char *argv[])
     char curBlock[1056];
     int readlen;
     int padding;
-    int totalSize = 0;
+    int padded = 0;
+    char paddingChar = 0;
+    int totalSize = 16;
     while(!feof(srcFile)){
       for(i = 0; i < 1056; i++){
           curBlock[i] = 0;
       }
       readlen = fread(curBlock, 1, 1024, srcFile);
-      padding = readlen % 16 ? 16 - (readlen % 16) : 0;
-      readlen += padding;
+      if(readlen < 1024){
+        padding = readlen % 16 ? 16 - (readlen % 16) : 0;
+        readlen += padding;
+        paddingChar = (char) padding;
+        padded = 1;
+        totalSize += 1;
+      }
       gcry_md_write(hash, curBlock, readlen);
       memcpy(curBlock + readlen, gcry_md_read(hash, GCRY_MD_SHA256), 32);
       readlen += 32;
-      printf("read %d bytes, wrote %d bytes,\n", readlen - 32, readlen);
+      printf("read %d bytes, wrote %d bytes,\n", readlen - 32 - padding,  readlen + 1);
       totalSize += readlen;
       gcry_cipher_encrypt(cipher, curBlock, readlen, NULL, 0);
-      readlen = fwrite(curBlock, 1, readlen, encFile);
+      if(padded){
+        curBlock[readlen] = paddingChar;
+      }
+      readlen = fwrite(curBlock, 1, readlen + padded, encFile);
     }
     printf("Successfully encrypted %s to %s (%d bytes written).\n", fileName, encFileName, totalSize);
-    fclose(srcFile);
-    gcry_cipher_close(cipher);
-    gcry_md_close(hash);
     if(!local){
       printf("Transmitting to %s:%s\n",address,port);
       memset(&hints, 0, sizeof hints);
@@ -133,9 +140,21 @@ int main(int argc, char *argv[])
       getaddrinfo(address, port, &hints, &servinfo);
       s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
       connect(s, servinfo->ai_addr, servinfo->ai_addrlen);
+      fseek(encFile, 0, SEEK_SET);
+      send(s, encFileName, strlen(encFileName),0);
+      char sendBuffer[512];
+      int length;
+      while(!feof(encFile)){
+        length = fread(sendBuffer, 1, 512, encFile);
+        send(s, sendBuffer, length, 0);
+      }
+      close(s);
       printf("Successfully received.\n");
     } 
 
+    fclose(srcFile);
+    gcry_cipher_close(cipher);
+    gcry_md_close(hash);
     fclose(encFile);
 
   } else {

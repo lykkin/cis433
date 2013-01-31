@@ -1,13 +1,10 @@
-CC = gcc
-
 all: uoenc uodec
 
 uoenc: 
-	gcc uoenc.c -lgcrypt -o enc
+	gcc uoenc.c -lgcrypt -o uoenc
 
 uodec: 
-	gcc uodec.c -lgcrypt -o dec
+	gcc uodec.c -lgcrypt -o uodec
 
-clean: rm dec enc
+clean: rm uodec uoenc
 
-cleantest: rm *.test.*
