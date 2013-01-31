@@ -1,0 +1,31 @@
+NOTE: I would like to apply one grace day to this assignment.
+
+Name: Bryan Clement
+
+Sources: uoenc.c -- networked/localized encryption using the gcrypt library
+         uodec.c -- networked/localized decryption using the gcrypt library
+         Makefile - Make file :)
+
+Work completed: Created a light-weight file sharing client using tcp sockets
+                and encryption. 
+
+Comments on design:  This isn't the prettiest thing I have made in terms of
+                     extensiblity, but it seems to get the job done.  If I
+                     had more time, I would focus on more error handling.
+                     I don't think the one-function style is terrible
+                     in this case, as I would never call a function more
+                     than once at any place.  Segmenting the code would
+                     probably make it easier to read, I admit.
+
+
+Notes about PBKDF2:  Clearly, we needed to share a salt in order to use this
+                     method.  As detailed in my source code, I decided to
+                     tack this onto the front of the file.  This may not be
+                     the most secure way, but it is certainly one of the easiest.
+                     I had thought of how to fold the bits into the file, but
+                     I wasn't ambitious enough to attempt any of them.
+
+Comments on effort:  I spent ~30 hours on this assignment, however it was
+                     fairly low intensity.  I read a lot of documentation,
+                     for example.  The coding portion wasn't notably hard
+                     once I got my C-legs back.
