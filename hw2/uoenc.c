@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
   struct addrinfo *servinfo, hints;
   
   if(argc > 4){
-    printf("Incorrect syntax, should be: ./uoenc <input file> [-d <output IP-addr:port>] [-l]");
+    printf("Incorrect syntax, should be: ./uoenc <input file> [-d <output IP-addr:port>] [-l]\n");
     exit(1);
   }
   int i;
@@ -76,12 +76,13 @@ int main(int argc, char *argv[])
 
   if(fileSpecified && srcFile){
     char encFileName[100];
+    memset(encFileName, 0, 100);
     strcpy(encFileName, fileName);
     strcat(encFileName, ".uo");
     FILE * encFile = fopen(encFileName, "a+");
 
     if(fgetc(encFile) != EOF){ //check if target encrypt file is empty
-      printf("%s already exists, exitting.\n", encFileName);
+      printf("%s already exists, exiting.\n", encFileName);
       fclose(srcFile);
       fclose(encFile);
       exit(1);
@@ -113,7 +114,7 @@ int main(int argc, char *argv[])
     err = gcry_md_setkey(hash, key, 32);
     char curBlock[1056];
     int readlen;
-    int padding;
+    int padding = 0;
     int padded = 0;
     char paddingChar = 0;
     int totalSize = 16; //16 since salt is already written
@@ -158,7 +159,7 @@ int main(int argc, char *argv[])
       s = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
       connect(s, servinfo->ai_addr, servinfo->ai_addrlen);
       fseek(encFile, 0, SEEK_SET);
-      send(s, encFileName, strlen(encFileName),0);
+      send(s, encFileName, 100,0);
       char sendBuffer[512];
       int length;
       while(!feof(encFile)){

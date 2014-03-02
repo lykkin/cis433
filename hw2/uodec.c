@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
     shutdown(s, 2);
     char recvBuffer[512];
     recv(fileSocket, fileName, 100, 0);
+    printf("name = %s\n", fileName);
     srcFile = fopen(fileName, "w");
     memset(recvBuffer, '\0', 512);
     int length;
@@ -84,6 +85,7 @@ int main(int argc, char *argv[])
 
   srcFile = fopen(fileName, "r");
   char decFileName[100];
+  memset(decFileName, 0, 100);
   strcpy(decFileName, fileName);
   decFileName[strlen(decFileName) - 3] = '\0';
   FILE * decFile = fopen(decFileName, "a+");
@@ -105,7 +107,7 @@ int main(int argc, char *argv[])
   //grab salt and generate key
   fread(salt, 1, 16, srcFile);
   salt[16] = '\0';
-  gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 100, 32, key);
+  gpg_error_t err = gcry_kdf_derive(password, strlen(password), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, strlen(salt), 3000, 32, key);
   key[32] = '\0';
 
   //initialize all the cipher stuff
@@ -137,8 +139,8 @@ int main(int argc, char *argv[])
     readlen -= 32;
     readlen -= padding;
     totalSize += readlen;
-    printf("read %d bytes, wrote %d bytes,\n", readlen + 32 + padding, readlen);
-    readlen = fwrite(curBlock, 1, readlen, decFile);
+    printf("read %d bytes, wrote %d bytes,\n", readlen + 32 + padding + 1, readlen);
+    readlen = fwrite(message, 1, readlen, decFile);
   }
 
   if(fileSpecified){
